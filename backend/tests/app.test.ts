@@ -9,3 +9,14 @@ describe("GET /health", () => {
     expect(response.body).toEqual({ status: "ok" });
   });
 });
+
+describe("unknown routes", () => {
+  it("returns a consistent 404 error response", async () => {
+    const response = await request(app).get("/api/v1/not-a-route");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      error: { code: "NOT_FOUND", message: "Resource not found." },
+    });
+  });
+});
