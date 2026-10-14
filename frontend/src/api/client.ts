@@ -18,8 +18,12 @@ api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      // The auth provider owns in-memory state; this event lets it clear it too.
-      window.dispatchEvent(new Event('auth:unauthorized'));
+      const url = error.config?.url ?? '';
+      // Invalid credentials during login are not evidence of an expired session.
+      const isPublicAuthRequest = url.includes('/auth/login') || url.includes('/auth/register');
+      if (!isPublicAuthRequest && localStorage.getItem(STORAGE_KEYS.TOKEN)) {
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
     }
     return Promise.reject(error);
   },

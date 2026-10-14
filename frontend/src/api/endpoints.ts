@@ -7,6 +7,7 @@ export const API_ENDPOINTS = {
   },
   TASKS: {
     ROOT: '/tasks',
+    SUMMARY: '/tasks/summary',
     BY_ID: (id: string) => `/tasks/${encodeURIComponent(id)}`,
   },
 } as const;
