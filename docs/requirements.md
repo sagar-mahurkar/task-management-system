@@ -105,6 +105,8 @@ Essential automated API tests - Setup and usage documentation
 
 ## 8. Acceptance Criteria
 
+The acceptance criteria below remain the specification checklist. Manual E2E scenarios and automated checks were reported as passing during Phase 13; this status does not replace the detailed criteria or their automated tests.
+
 - [ ] A user can register and log in.
 - [ ] Passwords are not stored in plaintext.
 - [ ] Protected endpoints reject missing or invalid authentication.
