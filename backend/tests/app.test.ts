@@ -20,3 +20,21 @@ describe("unknown routes", () => {
     });
   });
 });
+
+
+describe("malformed request bodies", () => {
+  it("returns a stable 400 response for malformed JSON", async () => {
+    const response = await request(app)
+      .post("/api/v1/auth/login")
+      .set("Content-Type", "application/json")
+      .send('{"email":');
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: {
+        code: "INVALID_JSON",
+        message: "Request body contains invalid JSON.",
+      },
+    });
+  });
+});
