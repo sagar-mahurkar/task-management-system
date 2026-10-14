@@ -409,4 +409,90 @@ describe("Task API end-to-end flow (in-memory repository)", () => {
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
     expect(tasks).toHaveLength(0);
   });
+
+
+  it.each([
+    ["unknown status", "/api/v1/tasks?status=blocked"],
+    ["unknown priority", "/api/v1/tasks?priority=urgent"],
+    ["unsupported query parameter", "/api/v1/tasks?unexpected=true"],
+  ])("rejects task list query with %s", async (_label, path) => {
+    const { token } = await registerUser("Query Validation", "query-validation@example.com");
+
+    const response = await request(app).get(path).set(withToken(token));
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects an invalid task UUID before querying the repository", async () => {
+    const { token } = await registerUser("Invalid ID", "invalid-id@example.com");
+
+    const response = await request(app)
+      .get("/api/v1/tasks/not-a-uuid")
+      .set(withToken(token));
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(taskRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["empty title", { title: "   " }],
+    ["invalid status", { title: "Bad status", status: "blocked" }],
+    ["invalid priority", { title: "Bad priority", priority: "urgent" }],
+    ["invalid date", { title: "Bad date", dueDate: "2026-02-30" }],
+    ["unsupported field", { title: "Unexpected field", user_id: randomUUID() }],
+  ])("rejects invalid create payload: %s", async (_label, payload) => {
+    const { token } = await registerUser("Create Validation", "create-validation@example.com");
+
+    const response = await request(app)
+      .post("/api/v1/tasks")
+      .set(withToken(token))
+      .send(payload);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(tasks).toHaveLength(0);
+  });
+
+  it("rejects an empty task update and leaves the task unchanged", async () => {
+    const { token } = await registerUser("Patch Validation", "patch-validation@example.com");
+    const createResponse = await request(app)
+      .post("/api/v1/tasks")
+      .set(withToken(token))
+      .send({ title: "Original title" });
+    expect(createResponse.status).toBe(201);
+    const taskId = createResponse.body.data.id as string;
+
+    const response = await request(app)
+      .patch(`/api/v1/tasks/${taskId}`)
+      .set(withToken(token))
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(tasks.find((task) => task.id === taskId)?.title).toBe("Original title");
+    expect(taskRepository.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects ownership fields in task updates and preserves the original owner", async () => {
+    const owner = await registerUser("Update Owner", "update-owner@example.com");
+    const other = await registerUser("Update Other", "update-other@example.com");
+    const createResponse = await request(app)
+      .post("/api/v1/tasks")
+      .set(withToken(owner.token))
+      .send({ title: "Owner's task" });
+    expect(createResponse.status).toBe(201);
+    const taskId = createResponse.body.data.id as string;
+
+    const response = await request(app)
+      .patch(`/api/v1/tasks/${taskId}`)
+      .set(withToken(owner.token))
+      .send({ user_id: other.user.id, title: "Changed title" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(tasks.find((task) => task.id === taskId)?.user.id).toBe(owner.user.id);
+    expect(tasks.find((task) => task.id === taskId)?.title).toBe("Owner's task");
+  });
 });

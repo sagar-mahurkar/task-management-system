@@ -146,4 +146,91 @@ describe("authentication API", () => {
     expect(response.status).toBe(401);
     expect(response.body.error.code).toBe("INVALID_TOKEN");
   });
+
+  it.each(["Basic abc", "Bearer", "Bearer    ", "token-without-scheme"]) (
+    "rejects malformed authorization header %s",
+    async (authorization) => {
+      const response = await request(app)
+        .get("/api/v1/auth/me")
+        .set("Authorization", authorization);
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toMatch(/AUTHENTICATION_REQUIRED|INVALID_TOKEN/);
+    },
+  );
+
+  it("rejects an expired access token", async () => {
+    const token = jwt.sign({}, process.env.JWT_SECRET_KEY!, {
+      algorithm: "HS256",
+      subject: testUser.id,
+      expiresIn: -1,
+    });
+
+    const response = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("INVALID_TOKEN");
+  });
+
+  it("rejects a token signed with a different secret", async () => {
+    const token = jwt.sign({}, "a-different-test-secret", {
+      algorithm: "HS256",
+      subject: testUser.id,
+      expiresIn: "1h",
+    });
+
+    const response = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("INVALID_TOKEN");
+  });
+
+  it("rejects a correctly signed token without a subject", async () => {
+    const token = jwt.sign({ userId: testUser.id }, process.env.JWT_SECRET_KEY!, {
+      algorithm: "HS256",
+      expiresIn: "1h",
+    });
+
+    const response = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("INVALID_TOKEN");
+  });
+
+  it("rejects the correct email with an incorrect password", async () => {
+    const passwordHash = await bcrypt.hash("correct-horse-battery", 4);
+    repository.findOneBy.mockResolvedValueOnce({ ...testUser, passwordHash });
+
+    const response = await request(app).post("/api/v1/auth/login").send({
+      email: testUser.email,
+      password: "incorrect-password",
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("INVALID_CREDENTIALS");
+    expect(response.body.error.message).toBe("Email or password is incorrect.");
+  });
+
+  it("rejects a valid token when its user no longer exists", async () => {
+    const token = jwt.sign({}, process.env.JWT_SECRET_KEY!, {
+      algorithm: "HS256",
+      subject: testUser.id,
+      expiresIn: "1h",
+    });
+    repository.findOneBy.mockResolvedValueOnce(null);
+
+    const response = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("INVALID_TOKEN");
+    expect(response.body.error.message).toBe("The authenticated user no longer exists.");
+  });
 });
