@@ -1,13 +1,14 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { MainLayout } from '@/layouts/MainLayout';
-import { AuthPlaceholderPage } from '@/modules/auth/AuthPlaceholderPage';
+import { LoginPage } from '@/modules/auth/LoginPage';
+import { RegisterPage } from '@/modules/auth/RegisterPage';
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 import { TasksPage } from '@/modules/tasks/TasksPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
 import { HomePage } from '@/pages/HomePage';
-import { ProtectedRoute } from '@/shared/components/ProtectedRoute';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ROUTES } from '@/routes/routes';
+import { ProtectedRoute } from '@/shared/components/ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
@@ -28,8 +29,8 @@ export const router = createBrowserRouter([
     path: '/auth',
     element: <AuthLayout />,
     children: [
-      { path: 'login', element: <AuthPlaceholderPage mode="login" /> },
-      { path: 'register', element: <AuthPlaceholderPage mode="register" /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'register', element: <RegisterPage /> },
     ],
   },
   { path: '*', element: <NotFoundPage /> },
