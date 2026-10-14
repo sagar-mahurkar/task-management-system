@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAlert } from '@/context/useAlert';
+import { useAuth } from '@/modules/auth/useAuth';
+import { authApi } from '@/modules/auth/authApi';
+import { getApiErrorMessage } from '@/api/apiError';
 import { ROUTES } from '@/routes/routes';
 
 export function RegisterPage() {
@@ -12,8 +15,11 @@ export function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; confirmPassword?: string }>({});
   const { showAlert } = useAlert();
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextErrors: typeof errors = {};
     if (!name.trim()) nextErrors.name = 'Enter your name.';
@@ -25,7 +31,17 @@ export function RegisterPage() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    showAlert('info', 'Your form is valid. Account creation will be connected to the API in Phase 12.');
+    setSubmitting(true);
+    try {
+      const result = await authApi.register({ name: name.trim(), email: email.trim(), password });
+      login(result.accessToken, result.user);
+      showAlert('success', 'Your account has been created.');
+      navigate(ROUTES.DASHBOARD, { replace: true });
+    } catch (error) {
+      showAlert('danger', getApiErrorMessage(error, 'Unable to create your account. Please try again.'));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -61,7 +77,7 @@ export function RegisterPage() {
             <input id="register-confirm-password" className={`form-control${errors.confirmPassword ? ' is-invalid' : ''}`} type="password" autoComplete="new-password" placeholder="Re-enter your password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
             {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
           </div>
-          <button className="btn btn-primary w-100 py-2" type="submit">Create account <i className="bi bi-arrow-right ms-1" aria-hidden="true" /></button>
+          <button className="btn btn-primary w-100 py-2" type="submit" disabled={submitting}>{submitting ? 'Creating account…' : <>Create account <i className="bi bi-arrow-right ms-1" aria-hidden="true" /></>}</button>
         </form>
         <p className="text-center text-secondary small mt-4 mb-0">Already have an account? <Link to={ROUTES.AUTH.LOGIN} className="fw-semibold text-decoration-none">Log in</Link></p>
       </div>

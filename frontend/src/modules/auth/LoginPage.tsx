@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAlert } from '@/context/useAlert';
+import { useAuth } from '@/modules/auth/useAuth';
+import { authApi } from '@/modules/auth/authApi';
+import { getApiErrorMessage } from '@/api/apiError';
 import { ROUTES } from '@/routes/routes';
 
 export function LoginPage() {
@@ -10,8 +13,12 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const { showAlert } = useAlert();
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextErrors: typeof errors = {};
     if (!email.trim()) nextErrors.email = 'Enter your email address.';
@@ -20,8 +27,18 @@ export function LoginPage() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    showAlert('info', 'Your form is valid. Authentication will be connected to the API in Phase 12.');
-    // Keep this page UI-only until the API integration phase.
+    setSubmitting(true);
+    try {
+      const result = await authApi.login({ email: email.trim(), password });
+      login(result.accessToken, result.user);
+      showAlert('success', 'You are now logged in.');
+      const destination = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+      navigate(destination || ROUTES.DASHBOARD, { replace: true });
+    } catch (error) {
+      showAlert('danger', getApiErrorMessage(error, 'Unable to log in. Please try again.'));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -47,7 +64,7 @@ export function LoginPage() {
               {errors.password && <div id="login-password-error" className="invalid-feedback d-block">{errors.password}</div>}
             </div>
           </div>
-          <button className="btn btn-primary w-100 py-2" type="submit">Log in <i className="bi bi-arrow-right ms-1" aria-hidden="true" /></button>
+          <button className="btn btn-primary w-100 py-2" type="submit" disabled={submitting}>{submitting ? 'Logging in…' : <>Log in <i className="bi bi-arrow-right ms-1" aria-hidden="true" /></>}</button>
         </form>
         <p className="text-center text-secondary small mt-4 mb-0">New to Task Manager? <Link to={ROUTES.AUTH.REGISTER} className="fw-semibold text-decoration-none">Create an account</Link></p>
       </div>

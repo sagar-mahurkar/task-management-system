@@ -4,11 +4,12 @@ import type { CreateTaskInput, Task, TaskPriority, TaskStatus } from '@/shared/t
 
 type TaskFormProps = {
   task?: Task | null;
-  onSubmit: (input: CreateTaskInput) => void;
+  onSubmit: (input: CreateTaskInput) => void | Promise<void>;
   onCancel: () => void;
+  isSubmitting?: boolean;
 };
 
-export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
+export function TaskForm({ task, onSubmit, onCancel, isSubmitting = false }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'pending');
@@ -45,7 +46,7 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
           <h2 className="h5 fw-bold mb-1">{task ? 'Edit task' : 'Create a task'}</h2>
           <p className="small text-secondary mb-0">Capture the next thing you need to get done.</p>
         </div>
-        <button className="btn btn-sm btn-light" type="button" onClick={onCancel} aria-label="Close task form"><i className="bi bi-x-lg" aria-hidden="true" /></button>
+        <button className="btn btn-sm btn-light" type="button" onClick={onCancel} disabled={isSubmitting} aria-label="Close task form"><i className="bi bi-x-lg" aria-hidden="true" /></button>
       </div>
       <div className="mb-3">
         <label className="form-label" htmlFor="task-title">Title <span className="text-danger">*</span></label>
@@ -80,8 +81,8 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
         <input id="task-due-date" className="form-control" type="date" value={dueDate ?? ''} onChange={(event) => setDueDate(event.target.value)} />
       </div>
       <div className="d-flex justify-content-end gap-2">
-        <button className="btn btn-light" type="button" onClick={onCancel}>Cancel</button>
-        <button className="btn btn-primary px-4" type="submit">{task ? 'Save changes' : 'Create task'}</button>
+        <button className="btn btn-light" type="button" onClick={onCancel} disabled={isSubmitting}>Cancel</button>
+        <button className="btn btn-primary px-4" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving…' : task ? 'Save changes' : 'Create task'}</button>
       </div>
     </form>
   );
