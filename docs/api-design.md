@@ -21,6 +21,7 @@
 | GET | `/api/v1/auth/me` | Bearer token | Return the authenticated user's public profile. |
 | POST | `/api/v1/tasks` | Bearer token | Create a task owned by the authenticated user. |
 | GET | `/api/v1/tasks` | Bearer token | List the authenticated user's tasks; optionally filter by status and priority. |
+| GET | `/api/v1/tasks/summary` | Bearer token | Return the authenticated user's total task count and counts grouped by status and priority. |
 | GET | `/api/v1/tasks/:id` | Bearer token | Retrieve one of the authenticated user's tasks. |
 | PATCH | `/api/v1/tasks/:id` | Bearer token | Update one of the authenticated user's tasks. |
 | DELETE | `/api/v1/tasks/:id` | Bearer token | Delete one of the authenticated user's tasks. |
@@ -130,3 +131,24 @@ Errors: `401 AUTHENTICATION_REQUIRED`, `401 INVALID_TOKEN`, `500 INTERNAL_SERVER
 ## Authorization boundary
 
 Every list, detail, update, and delete operation is scoped by the authenticated user ID from verified JWT context. A task owned by another user is treated as not found; the API does not disclose its data. Dashboard aggregation is a separate Phase 8 feature.
+
+
+## Task summary
+
+`GET /api/v1/tasks/summary`
+
+Requires a bearer token. The authenticated user's identity is taken from the verified JWT; the client cannot select another user's scope. Counts are computed by a database aggregation query.
+
+Success: `200 OK`
+
+```json
+{
+  "data": {
+    "totalTasks": 4,
+    "byStatus": { "pending": 2, "in_progress": 1, "completed": 1 },
+    "byPriority": { "low": 1, "medium": 1, "high": 2 }
+  }
+}
+```
+
+A user with no tasks receives zero for every count. Errors: `401 AUTHENTICATION_REQUIRED` or `401 INVALID_TOKEN`, `500 INTERNAL_SERVER_ERROR`.

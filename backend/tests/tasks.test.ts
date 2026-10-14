@@ -121,6 +121,30 @@ const taskRepository = {
     if (index >= 0) tasks.splice(index, 1);
     return task;
   }),
+  createQueryBuilder: jest.fn((_alias: string) => {
+    let scopedUserId = "";
+    const queryBuilder = {
+      select: jest.fn(() => queryBuilder),
+      addSelect: jest.fn(() => queryBuilder),
+      where: jest.fn((_condition: string, parameters: { userId: string }) => {
+        scopedUserId = parameters.userId;
+        return queryBuilder;
+      }),
+      getRawOne: jest.fn(async () => {
+        const userTasks = tasks.filter((task) => task.user.id === scopedUserId);
+        return {
+          totalTasks: String(userTasks.length),
+          pending: String(userTasks.filter((task) => task.status === "pending").length),
+          inProgress: String(userTasks.filter((task) => task.status === "in_progress").length),
+          completed: String(userTasks.filter((task) => task.status === "completed").length),
+          low: String(userTasks.filter((task) => task.priority === "low").length),
+          medium: String(userTasks.filter((task) => task.priority === "medium").length),
+          high: String(userTasks.filter((task) => task.priority === "high").length),
+        };
+      }),
+    };
+    return queryBuilder;
+  }),
 };
 
 const getRepositoryMock = AppDataSource.getRepository as jest.Mock;
@@ -326,6 +350,50 @@ describe("Task API end-to-end flow (in-memory repository)", () => {
       .set(withToken(owner.token));
     expect(ownerRead.status).toBe(200);
     expect(ownerRead.body.data.title).toBe("Private task");
+  });
+
+  it("returns status and priority counts scoped to the authenticated user", async () => {
+    const owner = await registerUser("Summary Owner", "summary-owner@example.com");
+    const other = await registerUser("Summary Other", "summary-other@example.com");
+
+    const fixtures = [
+      { title: "Pending low", status: "pending", priority: "low" },
+      { title: "Pending high", status: "pending", priority: "high" },
+      { title: "In progress medium", status: "in_progress", priority: "medium" },
+      { title: "Completed high", status: "completed", priority: "high" },
+    ];
+    for (const fixture of fixtures) {
+      const response = await request(app).post("/api/v1/tasks").set(withToken(owner.token)).send(fixture);
+      expect(response.status).toBe(201);
+    }
+    const otherTask = await request(app).post("/api/v1/tasks")
+      .set(withToken(other.token)).send({ title: "Other user's task", status: "completed", priority: "low" });
+    expect(otherTask.status).toBe(201);
+
+    const response = await request(app).get("/api/v1/tasks/summary").set(withToken(owner.token));
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      totalTasks: 4,
+      byStatus: { pending: 2, in_progress: 1, completed: 1 },
+      byPriority: { low: 1, medium: 1, high: 2 },
+    });
+  });
+
+  it("requires authentication for the task summary endpoint", async () => {
+    const response = await request(app).get("/api/v1/tasks/summary");
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("AUTHENTICATION_REQUIRED");
+  });
+
+  it("returns zero counts when the authenticated user has no tasks", async () => {
+    const { token } = await registerUser("Empty Summary", "empty-summary@example.com");
+    const response = await request(app).get("/api/v1/tasks/summary").set(withToken(token));
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      totalTasks: 0,
+      byStatus: { pending: 0, in_progress: 0, completed: 0 },
+      byPriority: { low: 0, medium: 0, high: 0 },
+    });
   });
 
   it("does not allow the client to assign a task to another user", async () => {
